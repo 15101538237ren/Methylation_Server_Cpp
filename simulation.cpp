@@ -145,7 +145,7 @@ int select_reaction(vector<double> propensity_tmp, int num_of_reactions, double 
     return reaction;
 }
 
-void simulate(int round_no,int round_start,int out_target_start_gen,int out_target_end_gen,int generation, int time_step, string init_cell, string detail_file_dir, string ratio_file_dir, vector<double> propensity_list, vector<int> index_pos_list, int nearby = -1, int max_cells = 1000, bool real_nearby = false){
+void simulate(bool debug,int round_no,int round_start,int out_target_start_gen,int out_target_end_gen,int generation, int time_step, string init_cell, string detail_file_dir, string ratio_file_dir, vector<double> propensity_list, vector<int> index_pos_list, int nearby = -1, int max_cells = 1000, bool real_nearby = false){
     
     
     vector<string> cell_collection;
@@ -183,11 +183,13 @@ void simulate(int round_no,int round_start,int out_target_start_gen,int out_targ
         vector<vector<string> > out_detail_seq_arr(cell_collection.size());
         for(int idx=0; idx<cell_collection.size(); idx++){
             vector<string> vect_tmp;
+            
             for(int j=0; j<time_step; j++){
-                clock_t ts_start_time=clock();
+//                clock_t ts_start_time=clock();
                 int cell_len = cell_collection[idx].length();
                 
                 for(int k=0; k<cell_len; k++){
+                    
                     int target_reaction_CpG_site = 1 + rand()%(cell_len-2);  //1~cell_len-2
                     int col_CpG_site_index = target_reaction_CpG_site + ((rand()%2)?1:-1);
                     char status_col_site = cell_collection[idx][col_CpG_site_index];
@@ -199,27 +201,79 @@ void simulate(int round_no,int round_start,int out_target_start_gen,int out_targ
                     if(real_nearby == true and distance > nearby){
                         continue;
                     }
+                    
                     if(distance > 997){
                         continue;
                     }
-                    double phi_d = phi_func(distance);
+                    
                     double pij = 1.0;
-                    vector<double> propensity_tmp = calc_propensity_list(phi_d, propensity_list, pij, status_col_site);
                     double sum_propensity = 0.0;
-                    int num_of_reactions = propensity_tmp.size();
-                    for(int i=0; i<num_of_reactions; i++){
-                        sum_propensity += propensity_tmp[i];
+                    int reaction_id=-1;
+                    
+                    if (!debug)
+                    {
+                        double fx = (1.0 / pow((beta + gamma_param * distance),power));
+                        double sx = (alpha / (30.0 * sqrt(2 * pi))) * exp(-(distance - 160.0) * (distance - 160.0) / (1800.0));
+                        double phi_d = fx + sx + c_off;
+                        
+                        double U_plus=propensity_list[0];
+                        double H_plus=propensity_list[1];
+                        double M_minus=propensity_list[2];
+                        double H_minus=propensity_list[3];
+                        double H_p_H=propensity_list[4];
+                        double H_p_M=propensity_list[5];
+                        double U_p_M=propensity_list[6];
+                        double H_m_U=propensity_list[7];
+                        double M_m_U=propensity_list[8];
+                        
+                        char xj_status=status_col_site;
+                        
+                        double u_i_plus=U_plus+pij*double(xj_status=='M')*phi_d*(U_p_M-U_plus);
+                        double h_i_plus=H_plus+pij*double(xj_status=='M')*phi_d*(H_p_M-H_plus) + pij*double(xj_status=='H')*phi_d*(H_p_H-H_plus);
+                        double m_i_minus=M_minus+pij*double(xj_status=='U')*phi_d*(M_m_U-M_minus);
+                        double h_i_minus=H_minus+pij*double(xj_status=='U')*phi_d*(H_m_U-H_minus);
+                        vector<double> propensity_tmp = {u_i_plus,h_i_plus,m_i_minus,h_i_minus};
+                        int num_of_reactions = propensity_tmp.size();
+                        for(int i=0; i<num_of_reactions; i++){
+                            sum_propensity += propensity_tmp[i];
+                        }
+                        double random_num = (double)(rand()%RAND_MAX)/RAND_MAX;
+                        double tmp_sum_propencity = 0.0;
+                        random_num = random_num * sum_propensity;
+                        for(int i = 0; i<num_of_reactions; i++){
+                            tmp_sum_propencity = tmp_sum_propencity + propensity_tmp[i];
+                            if(random_num < tmp_sum_propencity){
+                                reaction_id = i;
+                                break;
+                            }
+                        }
+                        
+                    }
+                    else{
+                        double phi_d = phi_func(distance);
+                        vector<double> propensity_tmp = calc_propensity_list(phi_d, propensity_list, pij, status_col_site);
+                        int num_of_reactions = propensity_tmp.size();
+                        for(int i=0; i<num_of_reactions; i++){
+                            sum_propensity += propensity_tmp[i];
+                        }
+                        double random_num = (double)(rand()%RAND_MAX)/RAND_MAX;
+                        reaction_id= select_reaction(propensity_tmp, num_of_reactions, sum_propensity, random_num);
                     }
                     
-                    double random_num = (double)(rand()%RAND_MAX)/RAND_MAX;
-                    int reaction_id = select_reaction(propensity_tmp, num_of_reactions, sum_propensity, random_num);
+                    
+//                    cout<< "gen:"<< i << ", time step:" << j << ": "<<static_cast<double>((ts_end_time-ts_start_time)*1000*1000*1000)/CLOCKS_PER_SEC<<"ns"<<endl;//输出运行时间
+                    
                     char status_of_target_site = cell_collection[idx][target_reaction_CpG_site];
+                    
                     if(right_status_of_reaction[reaction_id] != status_of_target_site){
                         continue;
                     }
                     
                     cell_collection[idx][target_reaction_CpG_site] = right_status_hash[reaction_id];
                 }
+//                clock_t ts_end_time=clock();
+//                cout<< "gen:"<< i << ", time step:" << j << ": "<<static_cast<double>(ts_end_time-ts_start_time)/CLOCKS_PER_SEC*1000<<"ms"<<endl;//输出运行时间
+                
                 int m_count=0,h_count=0,u_count=0;
                 for (int it=0;it < cell_len;it++)
                 {
@@ -242,8 +296,6 @@ void simulate(int round_no,int round_start,int out_target_start_gen,int out_targ
                 U_count_statistics[j].pb(u_count);
                 
                 out_detail_seq_arr[idx].pb(cell_collection[idx]);
-                clock_t ts_end_time=clock();
-                //cout<< "gen:"<< i << ", time step:" << j << ": "<<static_cast<double>(ts_end_time-ts_start_time)/CLOCKS_PER_SEC*1000<<"ms"<<endl;//输出运行时间
             }
             
             string cell_1, cell_2;
@@ -842,6 +894,7 @@ void calc_correlation_for_generations(int generation_start,int generation_end,in
 }
 void start_simulation()
 {
+    bool debug=false;
     int repeat_start=1;
     int repeat_end=1;
     
@@ -912,7 +965,7 @@ void start_simulation()
             if (simulation){
                 for(int round_i=round_start;round_i<=round_end;round_i++)
                 {
-                    simulate(round_i,round_start,out_target_start_gen,out_target_end_gen,generations,time_step,init_cell,detail_file_dir,ratio_file_dir,propensity_list,index_pos_list,nearby,max_cells,real_nearby);
+                    simulate(debug,round_i,round_start,out_target_start_gen,out_target_end_gen,generations,time_step,init_cell,detail_file_dir,ratio_file_dir,propensity_list,index_pos_list,nearby,max_cells,real_nearby);
                 }
             }
             if(calc_corr){
