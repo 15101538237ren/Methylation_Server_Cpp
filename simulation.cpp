@@ -410,7 +410,7 @@ void load_norm_distri_param(string norm_param_file_path)
         map<string,float> params_map;
         
         cmatch match_result;  //保存匹配结果
-        string pattern="([a-z]+)=([\\d]+\\.[\\d]*)";
+        string pattern="([a-z_]+)=([\\d]+\\.[\\d]*)";
         regex regex_expression(pattern);
         while (! param_file.eof() )
         {
@@ -845,27 +845,37 @@ void start_simulation()
     int repeat_start=1;
     int repeat_end=1;
     
-    int generations=30;
+    int partial_start=1;
+    int partial_end=1;
+    
     int round_start=1;
     int round_end=6;
     int round_size=round_end-round_start+1;
+    
+    int generations=30;
     int max_cpg_sites=100000;
     string init_cell;
     double m_ratio=0.181214;
     double u_ratio=0.391004;
+    
     vector<int> index_pos_list;
+    
     string path_dir="/Users/Ren/XCodeProjects/Methylation_Server/Methylation_Server/";
     string input_bed_file_path=path_dir+"chr1.bed";
+    
     string ratio_file_dir;
     string detail_file_dir;
     string bed_file_dir;
     string rd_without_dir;
+    
     int time_step=100;
     int d_max=1000;
     bool calc_interval=false;
     bool ignore_d=false;
+    
     load_norm_distri_param("/Users/Ren/PycharmProjects/Methylation_Server/input_new/diff_period_param/pat_2.txt");
     vector<double> propensity_list=load_reaction_param("/Users/Ren/PycharmProjects/Methylation_Server/input_new/reaction_0.txt");
+    
     int nearby = 1;
     int max_cells = 2;
     bool real_nearby = false;
@@ -877,8 +887,7 @@ void start_simulation()
     int out_target_end_gen=generations;
     
     for (int rp=repeat_start;rp<=repeat_end;rp++){
-        int partial_start=1;
-        int partial_end=1;
+        
         path_dir=path_dir+"repeat_"+to_string(rp)+"/";
         int rtn_code=exist_or_make_dir(path_dir);
         for (int partial_i=partial_start;partial_i<=partial_end;partial_i++){
